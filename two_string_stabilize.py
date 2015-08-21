@@ -1,6 +1,7 @@
 from Tkinter import *
 import RPi.GPIO as GPIO
 import smbus
+
 import math
 import time
 
@@ -12,8 +13,10 @@ GPIO.setmode(GPIO.BOARD)
 GPIO.setup(M1, GPIO.OUT)
 GPIO.setup(M3, GPIO.OUT)
 
+
 motor1 = GPIO.PWM(M1, 50)
 motor3 = GPIO.PWM(M3, 50)
+
 
 motor1Speed=0
 motor3Speed=0
