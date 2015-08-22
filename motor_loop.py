@@ -2,6 +2,9 @@ import RPi.GPIO as GPIO
 import smbus
 import math
 import time
+import socket
+import threading
+
 
 ###################################################################
 ## Globals
@@ -48,6 +51,103 @@ INCREASE = 1.0
 DECREASE = -1.0
 ###################################################################
 ###################################################################
+
+
+###################################################################
+## Socket Thread
+###################################################################
+def remoteCommands():
+	#valid incoming messages - all messages are 8 characters
+	#motor messages will be the motor, a space, and the change
+	#i.e. "MOTORA +" will increase all motors
+	msg_ALL="MOTORA"
+	msg_X="MOTORX"
+	msg_Y="MOTORY"
+	msg_M1="MOTOR1"
+	msg_M2="MOTOR2"
+	msg_M3="MOTOR3"
+	msg_M4="MOTOR4"
+	msg_INCREASE="+"
+	msg_DECREASE="-"
+	msg_STOP="STOPALL!"
+	#####
+
+	loop=True
+	HOST=''
+	PORT=56789
+	s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+	s.bind((HOST, PORT))
+
+	while loop:
+		s.listen(1)
+		conn, addr = s.accept()
+		data = conn.recv(8)
+		data = data.split()
+		if(len(data) == 1):
+			if(data[0] == msg_STOP):
+				stopFunc()
+			else:
+				print "Invalid message"
+		elif(len(data) == 2):
+			if(data[0] == msg_ALL): #All motors
+				if(data[1] == msg_INCREASE):
+					changeMotorsALL(INCREASE)
+				elif(data[1] == msg_DECREASE):
+					changeMotorsALL(DECREASE)
+				else:
+					print "Invalid message"
+			elif(data[0] == msg_X): #Motors over X rotation
+				if(data[1] == msg_INCREASE):
+					changeMotorsXrotation(INCREASE)#backwards
+				elif(data[1] == msg_DECREASE):
+					changeMotorsXrotation(DECREASE)#forwards
+				else:
+					print "Invalid message"
+			elif(data[0] == msg_Y): #Motors over Y rotation
+				if(data[1] == msg_INCREASE):
+					changeMotorsYrotation(INCREASE)#right
+				elif(data[1] == msg_DECREASE):
+					changeMotorsYrotation(DECREASE)#left
+				else:
+					print "Invalid message"
+			elif(data[0] == msg_M1): #Motor 1
+				if(data[1] == msg_INCREASE):
+					changeMotor(motor1List, INCREASE)
+				elif(data[1] == msg_DECREASE):
+					changeMotor(motor1List, DECREASE)
+				else:
+					print "Invalid message"
+			elif(data[0] == msg_M2): #Motor 2
+				if(data[1] == msg_INCREASE):
+					changeMotor(motor2List, INCREASE)
+				elif(data[1] == msg_DECREASE):
+					changeMotor(motor2List, DECREASE)
+				else:
+					print "Invalid message"
+			elif(data[0] == msg_M3): #Motor 3
+				if(data[1] == msg_INCREASE):
+					changeMotor(motor3List, INCREASE)
+				elif(data[1] == msg_DECREASE):
+					changeMotor(motor3List, DECREASE)
+				else:
+					print "Invalid message"
+			elif(data[0] == msg_M4): #Motor 4
+				if(data[1] == msg_INCREASE):
+					changeMotor(motor4List, INCREASE)
+				elif(data[1] == msg_DECREASE):
+					changeMotor(motor4List, DECREASE)
+				else:
+					print "Invalid message"
+			else:
+				print "Invalid message"
+		else:
+			print "Invalid message"
+
+
+
+###################################################################
+###################################################################
+
 
 
 
@@ -128,6 +228,18 @@ def changeMotor(motorList, change):
 	print "%s speed changed from %f to %f" % (motorList[NAME], oldSpeed, motorList[SPEED])
 #####
 
+def changeMotorsXrotation(change):
+	changeMotor(motor1List, change)
+	changeMotor(motor2List, change)
+	changeMotor(motor3List, -change)
+	changeMotor(motor4List, -change)
+
+def changeMotorsYrotation(change):
+	changeMotor(motor1List, change)
+	changeMotor(motor4List, change)
+	changeMotor(motor2List, -change)
+	changeMotor(motor3List, -change)
+
 def changeMotorsALL(change):
 	changeMotor(motor1List, change)
 	changeMotor(motor2List, change)
@@ -155,8 +267,11 @@ def stopFunc():
 
 
 def main():
+	t = threading.Thread(target=remoteCommands, args=())
+	t.start()
 
 
 	GPIO.cleanup()
+	t.join()
 
 main()
