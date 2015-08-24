@@ -4,17 +4,26 @@ import math
 import time
 import socket
 import threading
+import signal
+import sys
 
 
 ###################################################################
 ## Globals
 ###################################################################
+#LOOP[0] for thread cleanup
+LOOP = [True]
+
+#Socket
+s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+
 #GPIO pins
 M1 = 13#white
 M2 = 29#red
 M3 = 33#white
 M4 = 40#red
 
+GPIO.cleanup()
 GPIO.setmode(GPIO.BOARD)
 GPIO.setup(M1, GPIO.OUT)
 GPIO.setup(M2, GPIO.OUT)
@@ -53,97 +62,132 @@ DECREASE = -1.0
 ###################################################################
 
 
+
+###################################################################
+## Handle Signal Interrupt
+###################################################################
+def sigCleanup(signum, frame):
+    cleanup()
+    sys.exit(0)
+
+def cleanup():
+    print "Starting cleanup"
+    LOOP[0]=False
+    stopFunc()
+    GPIO.cleanup()
+    try:
+        s.close()
+    except Exception:
+        print "No socket to close"
+    
+###################################################################
+###################################################################
+
+
+
 ###################################################################
 ## Socket Thread
 ###################################################################
 def remoteCommands():
-	#valid incoming messages - all messages are 8 characters
-	#motor messages will be the motor, a space, and the change
-	#i.e. "MOTORA +" will increase all motors
-	msg_ALL="MOTORA"
-	msg_X="MOTORX"
-	msg_Y="MOTORY"
-	msg_M1="MOTOR1"
-	msg_M2="MOTOR2"
-	msg_M3="MOTOR3"
-	msg_M4="MOTOR4"
-	msg_INCREASE="+"
-	msg_DECREASE="-"
-	msg_STOP="STOPALL!"
-	#####
-
-	loop=True
-	HOST=''
-	PORT=56789
-	s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-	s.bind((HOST, PORT))
-
-	while loop:
-		s.listen(1)
-		conn, addr = s.accept()
-		data = conn.recv(8)
-		data = data.split()
-		if(len(data) == 1):
-			if(data[0] == msg_STOP):
-				stopFunc()
-			else:
-				print "Invalid message"
-		elif(len(data) == 2):
-			if(data[0] == msg_ALL): #All motors
-				if(data[1] == msg_INCREASE):
-					changeMotorsALL(INCREASE)
-				elif(data[1] == msg_DECREASE):
-					changeMotorsALL(DECREASE)
-				else:
-					print "Invalid message"
-			elif(data[0] == msg_X): #Motors over X rotation
-				if(data[1] == msg_INCREASE):
-					changeMotorsXrotation(INCREASE)#backwards
-				elif(data[1] == msg_DECREASE):
-					changeMotorsXrotation(DECREASE)#forwards
-				else:
-					print "Invalid message"
-			elif(data[0] == msg_Y): #Motors over Y rotation
-				if(data[1] == msg_INCREASE):
-					changeMotorsYrotation(INCREASE)#right
-				elif(data[1] == msg_DECREASE):
-					changeMotorsYrotation(DECREASE)#left
-				else:
-					print "Invalid message"
-			elif(data[0] == msg_M1): #Motor 1
-				if(data[1] == msg_INCREASE):
-					changeMotor(motor1List, INCREASE)
-				elif(data[1] == msg_DECREASE):
-					changeMotor(motor1List, DECREASE)
-				else:
-					print "Invalid message"
-			elif(data[0] == msg_M2): #Motor 2
-				if(data[1] == msg_INCREASE):
-					changeMotor(motor2List, INCREASE)
-				elif(data[1] == msg_DECREASE):
-					changeMotor(motor2List, DECREASE)
-				else:
-					print "Invalid message"
-			elif(data[0] == msg_M3): #Motor 3
-				if(data[1] == msg_INCREASE):
-					changeMotor(motor3List, INCREASE)
-				elif(data[1] == msg_DECREASE):
-					changeMotor(motor3List, DECREASE)
-				else:
-					print "Invalid message"
-			elif(data[0] == msg_M4): #Motor 4
-				if(data[1] == msg_INCREASE):
-					changeMotor(motor4List, INCREASE)
-				elif(data[1] == msg_DECREASE):
-					changeMotor(motor4List, DECREASE)
-				else:
-					print "Invalid message"
-			else:
-				print "Invalid message"
-		else:
-			print "Invalid message"
+    #valid incoming messages - all messages are 8 characters
+    #motor messages will be the motor, a space, and the change
+    #i.e. "MOTORA +" will increase all motors
+    msg_ALL="MOTORA"
+    msg_X="MOTORX"
+    msg_Y="MOTORY"
+    msg_M1="MOTOR1"
+    msg_M2="MOTOR2"
+    msg_M3="MOTOR3"
+    msg_M4="MOTOR4"
+    msg_INCREASE="+"
+    msg_DECREASE="-"
+    msg_STOP="STOPALL!"
+    msg_START="STARTALL"
+    msg_FINISH="FINISH!!"
+    #####
 
 
+    HOST=''
+    PORT=56789
+    s.bind((HOST, PORT))
+
+    while LOOP[0]:
+        s.listen(1) #NOTE: This will hang if the program ends on a Ctrl+C, need to send one final message of anything to end the thread in that case
+        conn, addr = s.accept()
+        data = conn.recv(8)
+        data = data.split()
+        if(len(data) == 1):
+            if(data[0] == msg_STOP): #Stop all motors
+                stopFunc()
+                #s.close()
+                #LOOP[0]=False
+            elif(data[0] == msg_START): #Start all motors
+                startFunc()
+            elif(data[0] == msg_FINISH): #Finish thread
+                stopFunc()
+                s.close()
+                LOOP[0]=False
+            else:
+                print "Invalid message"
+        elif(len(data) == 2):
+            if(data[0] == msg_ALL): #All motors
+                if(data[1] == msg_INCREASE):
+                    changeMotorsALL(INCREASE)
+                elif(data[1] == msg_DECREASE):
+                    changeMotorsALL(DECREASE)
+                else:
+                    print "Invalid message"
+            elif(data[0] == msg_X): #Motors over X rotation
+                if(data[1] == msg_INCREASE):
+                    changeMotorsXrotation(INCREASE)#backwards
+                elif(data[1] == msg_DECREASE):
+                    changeMotorsXrotation(DECREASE)#forwards
+                else:
+                    print "Invalid message"
+            elif(data[0] == msg_Y): #Motors over Y rotation
+                if(data[1] == msg_INCREASE):
+                    changeMotorsYrotation(INCREASE)#right
+                elif(data[1] == msg_DECREASE):
+                    changeMotorsYrotation(DECREASE)#left
+                else:
+                    print "Invalid message"
+            elif(data[0] == msg_M1): #Motor 1
+                if(data[1] == msg_INCREASE):
+                    changeMotor(motor1List, INCREASE)
+                elif(data[1] == msg_DECREASE):
+                    changeMotor(motor1List, DECREASE)
+                else:
+                    print "Invalid message"
+            elif(data[0] == msg_M2): #Motor 2
+                if(data[1] == msg_INCREASE):
+                    changeMotor(motor2List, INCREASE)
+                elif(data[1] == msg_DECREASE):
+                    changeMotor(motor2List, DECREASE)
+                else:
+                    print "Invalid message"
+            elif(data[0] == msg_M3): #Motor 3
+                if(data[1] == msg_INCREASE):
+                    changeMotor(motor3List, INCREASE)
+                elif(data[1] == msg_DECREASE):
+                    changeMotor(motor3List, DECREASE)
+                else:
+                    print "Invalid message"
+            elif(data[0] == msg_M4): #Motor 4
+                if(data[1] == msg_INCREASE):
+                    changeMotor(motor4List, INCREASE)
+                elif(data[1] == msg_DECREASE):
+                    changeMotor(motor4List, DECREASE)
+                else:
+                    print "Invalid message"
+            else:
+                print "Invalid message"
+        else:
+            print "Invalid message"
+
+
+        conn.close()
+
+    print "Ending listening thread"
 
 ###################################################################
 ###################################################################
@@ -196,82 +240,85 @@ def get_x_rotation(x, y, z):
 ## Interactive functions
 ###################################################################
 def startFunc():
-	print "Initialized all motors to speed = 0%"
-	motor1List[SPEED]=ZERO
-	motor2List[SPEED]=ZERO
-	motor3List[SPEED]=ZERO
-	motor4List[SPEED]=ZERO
-	motor1List[MOTOR].start(motor1List[SPEED])
-	motor2List[MOTOR].start(motor2List[SPEED])
-	motor3List[MOTOR].start(motor3List[SPEED])
-	motor4List[MOTOR].start(motor4List[SPEED])
+    print "Initialized all motors to speed = 0%"
+    motor1List[SPEED]=ZERO
+    motor2List[SPEED]=ZERO
+    motor3List[SPEED]=ZERO
+    motor4List[SPEED]=ZERO
+    motor1List[MOTOR].start(motor1List[SPEED])
+    motor2List[MOTOR].start(motor2List[SPEED])
+    motor3List[MOTOR].start(motor3List[SPEED])
+    motor4List[MOTOR].start(motor4List[SPEED])
 #####
 
 def changeMotor(motorList, change):
-	oldSpeed = motorList[SPEED]
-	if(change == DECREASE): #Decrease
-		if(motorList[SPEED] == PWM_MIN):
-			motorList[SPEED] = ZERO
-		else:
-			motorList[SPEED] -= PWM_SCALE
-			if(motorList[SPEED] <= PWM_MIN):
-				motorList[SPEED] = PWM_MIN
-	else: #Increase
-		if(motorList[SPEED] == ZERO):
-			motorList[SPEED] = PWM_MIN
-		else:
-			motorList[SPEED] += PWM_SCALE
-			if(motorList[SPEED] >= PWM_MAX):
-				motorList[SPEED] = PWM_MAX
+    oldSpeed = motorList[SPEED]
+    if(change == DECREASE): #Decrease
+        if(motorList[SPEED] == PWM_MIN):
+            motorList[SPEED] = ZERO
+        else:
+            motorList[SPEED] -= PWM_SCALE
+            if(motorList[SPEED] <= PWM_MIN):
+                motorList[SPEED] = PWM_MIN
+    else: #Increase
+        if(motorList[SPEED] == ZERO):
+            motorList[SPEED] = PWM_MIN
+        else:
+            motorList[SPEED] += PWM_SCALE
+            if(motorList[SPEED] >= PWM_MAX):
+                motorList[SPEED] = PWM_MAX
 
-	motorList[MOTOR].ChangeDutyCycle(motorList[SPEED])
-	print "%s speed changed from %f to %f" % (motorList[NAME], oldSpeed, motorList[SPEED])
+    motorList[MOTOR].ChangeDutyCycle(motorList[SPEED])
+    print "%s speed changed from %f to %f" % (motorList[NAME], oldSpeed, motorList[SPEED])
 #####
 
 def changeMotorsXrotation(change):
-	changeMotor(motor1List, change)
-	changeMotor(motor2List, change)
-	changeMotor(motor3List, -change)
-	changeMotor(motor4List, -change)
+    changeMotor(motor1List, change)
+    changeMotor(motor2List, change)
+    changeMotor(motor3List, -change)
+    changeMotor(motor4List, -change)
 
 def changeMotorsYrotation(change):
-	changeMotor(motor1List, change)
-	changeMotor(motor4List, change)
-	changeMotor(motor2List, -change)
-	changeMotor(motor3List, -change)
+    changeMotor(motor1List, change)
+    changeMotor(motor4List, change)
+    changeMotor(motor2List, -change)
+    changeMotor(motor3List, -change)
 
 def changeMotorsALL(change):
-	changeMotor(motor1List, change)
-	changeMotor(motor2List, change)
-	changeMotor(motor3List, change)
-	changeMotor(motor4List, change)
+    changeMotor(motor1List, change)
+    changeMotor(motor2List, change)
+    changeMotor(motor3List, change)
+    changeMotor(motor4List, change)
 #####
 
 def stopFunc():
-	print "Stopping all motors, speeds = 0%"
-	motor1List[SPEED]=ZERO
-	motor2List[SPEED]=ZERO
-	motor3List[SPEED]=ZERO
-	motor4List[SPEED]=ZERO
-	motor1List[MOTOR].ChangeDutyCycle(motor1List[SPEED])
-	motor2List[MOTOR].ChangeDutyCycle(motor2List[SPEED])
-	motor3List[MOTOR].ChangeDutyCycle(motor3List[SPEED])
-	motor4List[MOTOR].ChangeDutyCycle(motor4List[SPEED])
+    print "Stopping all motors, speeds = 0%"
+    motor1List[SPEED]=ZERO
+    motor2List[SPEED]=ZERO
+    motor3List[SPEED]=ZERO
+    motor4List[SPEED]=ZERO
+    motor1List[MOTOR].ChangeDutyCycle(motor1List[SPEED])
+    motor2List[MOTOR].ChangeDutyCycle(motor2List[SPEED])
+    motor3List[MOTOR].ChangeDutyCycle(motor3List[SPEED])
+    motor4List[MOTOR].ChangeDutyCycle(motor4List[SPEED])
 #####
 ###################################################################
 ###################################################################
 
 
 
+def main(): 
+    t.start()
+
+    while 1:
+        if(threading.activeCount() == 1):
+            print "Thread finished"
+            break
+
+    cleanup()
 
 
 
-def main():
-	t = threading.Thread(target=remoteCommands, args=())
-	t.start()
-
-
-	GPIO.cleanup()
-	t.join()
-
+t = threading.Thread(target=remoteCommands, args=())
+signal.signal(signal.SIGINT, sigCleanup)
 main()
