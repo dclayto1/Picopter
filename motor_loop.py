@@ -110,11 +110,12 @@ def remoteCommands():
     HOST=''
     PORT=56789
     s.bind((HOST, PORT))
-
+    s.listen(1)
+    conn, addr = s.accept()
     while LOOP[0]:
-        s.listen(1) #NOTE: This will hang if the program ends on a Ctrl+C, need to send one final message of anything to end the thread in that case
-        conn, addr = s.accept()
+        
         data = conn.recv(8)
+        if not data: break
         data = data.split()
         if(len(data) == 1):
             if(data[0] == msg_STOP): #Stop all motors
@@ -185,7 +186,7 @@ def remoteCommands():
             print "Invalid message"
 
 
-        conn.close()
+    conn.close()
 
     print "Ending listening thread"
 
@@ -258,7 +259,9 @@ def changeMotor(motorList, change):
             motorList[SPEED] = ZERO
         else:
             motorList[SPEED] -= PWM_SCALE
-            if(motorList[SPEED] <= PWM_MIN):
+            if(motorList[SPEED] <= ZERO):
+                motorList[SPEED] = ZERO
+            elif(motorList[SPEED] <= PWM_MIN):
                 motorList[SPEED] = PWM_MIN
     else: #Increase
         if(motorList[SPEED] == ZERO):
