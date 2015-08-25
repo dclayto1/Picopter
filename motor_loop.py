@@ -111,7 +111,7 @@ def remoteCommands():
     PORT=56789
     s.bind((HOST, PORT))
     s.listen(1)
-    conn, addr = s.accept()
+    conn, addr = s.accept() #Hangs here occasionally on a Ctrl+C
     while LOOP[0]:
         
         data = conn.recv(8)
@@ -313,7 +313,56 @@ def stopFunc():
 def main(): 
     t.start()
 
+
+    #Wake up the mpu6050 (it starts in sleep mode)
+    bus.write_byte_data(address, power_mgmt_1, 0)
+
+    #samplerate? and time constant?
+    samplerate = 0.005 #loop was taking about .0052-.0058seconds for each iteration if print to terminal, .0047 if directed to file...rounded to .005
+    timeconstant = 1.0
+    alpha = timeconstant/(timeconstant+samplerate)
+    #filtered_angle = alpha * (gyro_angle) + (1 - alpha) * (accel_angle)
+    #gyro_angle = (previous filtered angle) + (angular_change)*(samplerate)
+
+
+    #initialize rotation
+    accel_xout = read_word_2c(0x3b)
+    accel_yout = read_word_2c(0x3d)
+    accel_zout = read_word_2c(0x3f)
+
+    accel_xout_scaled = read_word_2c(0x3b) / 16384.0
+    accel_yout_scaled = read_word_2c(0x3d) / 16384.0
+    accel_zout_scaled = read_word_2c(0x3f) / 16384.0
+    x_rotation = get_x_rotation(accel_xout_scaled, accel_yout_scaled, accel_zout_scaled)
+    y_rotation = get_y_rotation(accel_xout_scaled, accel_yout_scaled, accel_zout_scaled)
+
+    filtered_x_rotation = x_rotation
+    filtered_y_rotation = y_rotation
+
+    loopstart = time.time()
     while 1:
+        print time.time() - loopstart
+        loopstart = time.time()
+
+
+        gyro_x_rotation = filtered_x_rotation + ((read_word_2c(0x43)/131) * samplerate)
+        gyro_y_rotation = filtered_y_rotation + ((read_word_2c(0x45)/131) * samplerate)
+        
+        accel_xout_scaled = read_word_2c(0x3b) / 16384.0
+        accel_yout_scaled = read_word_2c(0x3d) / 16384.0
+        accel_zout_scaled = read_word_2c(0x3f) / 16384.0
+        x_rotation = get_x_rotation(accel_xout_scaled, accel_yout_scaled, accel_zout_scaled)
+        y_rotation = get_y_rotation(accel_xout_scaled, accel_yout_scaled, accel_zout_scaled)
+
+        filtered_x_rotation = (alpha * gyro_x_rotation) + ((1-alpha) * (x_rotation))
+        filtered_y_rotation = (alpha * gyro_y_rotation) + ((1-alpha) * (y_rotation))
+
+        print "x rotation - %f" % filtered_x_rotation
+        print "y rotation - %f" % filtered_y_rotation
+
+
+
+
         if(threading.activeCount() == 1):
             print "Thread finished"
             break
