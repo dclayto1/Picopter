@@ -339,11 +339,27 @@ def main():
     filtered_x_rotation = x_rotation
     filtered_y_rotation = y_rotation
 
+    # PID values
+    SET_POINT = 0.0 #leveled #using the same SP for both X and Y axises
+    K_PROPORTIONAL = 1.0
+    K_INTEGRAL = 1.0
+    K_DERIVATIVE = 0.0
+    error_X_axis = 0.0
+    error_Y_axis = 0.0
+    dt = 0.0
+    integral_X_axis = 0.0
+    integral_Y_axis = 0.0
+    process_variable_X_axis = (K_PROPORTIONAL*error_X_axis) + (K_INTEGRAL*(integral_X_axis+=(dt*error_X_axis))) #just PI in PID for now
+    process_variable_Y_axis = (K_PROPORTIONAL*error_Y_axis) + (K_INTEGRAL*(integral_Y_axis+=(dt*error_Y_axis))) #just PI in PID for now
+
+
+
+
+
     loopstart = time.time()
     while 1:
         print time.time() - loopstart
         loopstart = time.time()
-
 
         gyro_x_rotation = filtered_x_rotation + ((read_word_2c(0x43)/131) * samplerate)
         gyro_y_rotation = filtered_y_rotation + ((read_word_2c(0x45)/131) * samplerate)
@@ -359,6 +375,16 @@ def main():
 
         print "x rotation - %f" % filtered_x_rotation
         print "y rotation - %f" % filtered_y_rotation
+
+        #PID
+        dt = time.time() - loopstart
+        error_X_axis = SET_POINT - filtered_x_rotation
+        error_Y_axis = SET_POINT - filtered_y_rotation
+        process_variable_X_axis = (K_PROPORTIONAL*error_X_axis) + (K_INTEGRAL*(integral_X_axis+=(dt*error_X_axis))) #just PI in PID for now
+        process_variable_Y_axis = (K_PROPORTIONAL*error_Y_axis) + (K_INTEGRAL*(integral_Y_axis+=(dt*error_Y_axis))) #just PI in PID for now
+
+          
+
 
 
 
