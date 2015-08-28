@@ -239,7 +239,7 @@ def changeMotor(motorList, change):
             if(motorList[SPEED] >= PWM_MAX):
                 motorList[SPEED] = PWM_MAX
 
-    motorList[MOTOR].ChangeDutyCycle(motorList[SPEED])
+    #motorList[MOTOR].ChangeDutyCycle(motorList[SPEED])
     print "%s speed changed from %f to %f" % (motorList[NAME], oldSpeed, motorList[SPEED])
 #####
 
@@ -268,10 +268,10 @@ def stopFunc():
     motor2List[SPEED]=ZERO
     motor3List[SPEED]=ZERO
     motor4List[SPEED]=ZERO
-    motor1List[MOTOR].ChangeDutyCycle(motor1List[SPEED])
+    '''motor1List[MOTOR].ChangeDutyCycle(motor1List[SPEED])
     motor2List[MOTOR].ChangeDutyCycle(motor2List[SPEED])
     motor3List[MOTOR].ChangeDutyCycle(motor3List[SPEED])
-    motor4List[MOTOR].ChangeDutyCycle(motor4List[SPEED])
+    motor4List[MOTOR].ChangeDutyCycle(motor4List[SPEED])'''
 #####
 ###################################################################
 ###################################################################
@@ -399,31 +399,16 @@ def main():
         motor2List[ADJUSTEDSPEED] = motor2List[SPEED]
         motor3List[ADJUSTEDSPEED] = motor3List[SPEED]
         motor4List[ADJUSTEDSPEED] = motor4List[SPEED]
-        #if(error_X_axis < 0): #positive x rotation past the set point
+        
         motor1List[ADJUSTEDSPEED] += (process_variable_X_axis*PWM_SCALE/2)
         motor2List[ADJUSTEDSPEED] += (process_variable_X_axis*PWM_SCALE/2)
         motor3List[ADJUSTEDSPEED] -= (process_variable_X_axis*PWM_SCALE/2)
         motor4List[ADJUSTEDSPEED] -= (process_variable_X_axis*PWM_SCALE/2)
-        '''else:
-            print "negative X rotation"
-            motor1List[ADJUSTEDSPEED] += (process_variable_X_axis*PWM_SCALE/2)
-            motor2List[ADJUSTEDSPEED] += (process_variable_X_axis*PWM_SCALE/2)
-            motor3List[ADJUSTEDSPEED] -= (process_variable_X_axis*PWM_SCALE/2)
-            motor4List[ADJUSTEDSPEED] -= (process_variable_X_axis*PWM_SCALE/2)
-        '''
 
-        #if(error_Y_axis < 0): #positive y rotation past the set point
         motor1List[ADJUSTEDSPEED] += (process_variable_Y_axis*PWM_SCALE/2)
         motor2List[ADJUSTEDSPEED] -= (process_variable_Y_axis*PWM_SCALE/2)
         motor3List[ADJUSTEDSPEED] -= (process_variable_Y_axis*PWM_SCALE/2)
         motor4List[ADJUSTEDSPEED] += (process_variable_Y_axis*PWM_SCALE/2)
-        '''else:
-            print "negative Y rotation"
-            motor1List[ADJUSTEDSPEED] += (process_variable_Y_axis*PWM_SCALE/2)
-            motor2List[ADJUSTEDSPEED] -= (process_variable_Y_axis*PWM_SCALE/2)
-            motor3List[ADJUSTEDSPEED] -= (process_variable_Y_axis*PWM_SCALE/2)
-            motor4List[ADJUSTEDSPEED] += (process_variable_Y_axis*PWM_SCALE/2)
-        '''
 
 
         for each in motors:
