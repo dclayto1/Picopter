@@ -17,6 +17,19 @@ LOOP = [True]
 #Socket
 s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
+
+###################################################################
+#0%-100% scale...5.0=0%, starting at 6.2, every 0.038 is 1%, 10.0 is 100%
+ZERO = 5.0
+PWM_SCALE = 0.038
+PWM_MAX = 10.0
+PWM_MIN = 6.2
+INCREASE = 1.0
+DECREASE = -1.0
+###################################################################
+###################################################################
+
+
 #GPIO pins
 M1 = 13#white
 M2 = 29#red
@@ -35,31 +48,29 @@ motor2 = GPIO.PWM(M2, 50)
 motor3 = GPIO.PWM(M3, 50)
 motor4 = GPIO.PWM(M4, 50)
 
-motor1Speed=0.0
-motor2Speed=0.0
-motor3Speed=0.0
-motor4Speed=0.0
+motor1Speed=ZERO
+motor2Speed=ZERO
+motor3Speed=ZERO
+motor4Speed=ZERO
+motor1_adjustedSpeed=motor1Speed
+motor2_adjustedSpeed=motor2Speed
+motor3_adjustedSpeed=motor3Speed
+motor4_adjustedSpeed=motor4Speed
 
-#Motor lists -> [ name, GPIO-pin, motor, speed ]
+#Motor lists -> [ name, GPIO-pin, motor, speed, adjustedSpeed ] #adjustedspeed is the change to the base speed for stabilization
 NAME=0
 PIN=1
 MOTOR=2
 SPEED=3
-motor1List = [ "Motor1", M1, motor1, motor1Speed ]
-motor2List = [ "Motor2", M2, motor2, motor2Speed ]
-motor3List = [ "Motor3", M3, motor3, motor3Speed ]
-motor4List = [ "Motor4", M4, motor4, motor4Speed ]
-
-
-#0%-100% scale...5.0=0%, starting at 6.2, every 0.038 is 1%, 10.0 is 100%
-ZERO = 5.0
-PWM_SCALE = 0.038
-PWM_MAX = 10.0
-PWM_MIN = 6.2
-INCREASE = 1.0
-DECREASE = -1.0
+ADJUSTEDSPEED=4
+motor1List = [ "Motor1", M1, motor1, motor1Speed, motor1_adjustedSpeed ]
+motor2List = [ "Motor2", M2, motor2, motor2Speed, motor2_adjustedSpeed ]
+motor3List = [ "Motor3", M3, motor3, motor3Speed, motor3_adjustedSpeed ]
+motor4List = [ "Motor4", M4, motor4, motor4Speed, motor4_adjustedSpeed ]
+motors = [ motor1List, motor2List, motor3List, motor4List ]
 ###################################################################
 ###################################################################
+
 
 
 
@@ -194,49 +205,6 @@ def remoteCommands():
 ###################################################################
 
 
-
-
-###################################################################
-## Accelerometer/Gyroscope
-###################################################################
-#Power management registers
-power_mgmt_1 = 0x6b
-power_mgmt_0 = 0x6c
-
-bus = smbus.SMBus(1) #1 if Revision2 board, 0 if original board
-address = 0x68 #0x68 if AD0 is grounded, otherwise 0x69 if 3.3v
-
-def read_byte(adr):
-    return bus.read_byte_data(address, adr)
-
-def read_word(adr):
-    high = bus.read_byte_data(address, adr)
-    low = bus.read_byte_data(address, adr+1)
-    val = (high << 8) + low
-    return val
-
-def read_word_2c(adr):
-    val = read_word(adr)
-    if (val >= 0x8000):
-        return -((65535 - val) + 1)
-    else:
-        return val
-
-def dist(a, b):
-    return math.sqrt((a*a) + (b*b))
-
-def get_y_rotation(x, y, z):
-    radians = math.atan2(x, dist(y, z))
-    return -math.degrees(radians)
-
-def get_x_rotation(x, y, z):
-    radians = math.atan2(y, dist(x, z))
-    return math.degrees(radians)
-###################################################################
-###################################################################
-
-
-
 ###################################################################
 ## Interactive functions
 ###################################################################
@@ -310,9 +278,51 @@ def stopFunc():
 
 
 
+
+###################################################################
+## Accelerometer/Gyroscope
+###################################################################
+#Power management registers
+power_mgmt_1 = 0x6b
+power_mgmt_0 = 0x6c
+
+bus = smbus.SMBus(1) #1 if Revision2 board, 0 if original board
+address = 0x68 #0x68 if AD0 is grounded, otherwise 0x69 if 3.3v
+
+def read_byte(adr):
+    return bus.read_byte_data(address, adr)
+
+def read_word(adr):
+    high = bus.read_byte_data(address, adr)
+    low = bus.read_byte_data(address, adr+1)
+    val = (high << 8) + low
+    return val
+
+def read_word_2c(adr):
+    val = read_word(adr)
+    if (val >= 0x8000):
+        return -((65535 - val) + 1)
+    else:
+        return val
+
+def dist(a, b):
+    return math.sqrt((a*a) + (b*b))
+
+def get_y_rotation(x, y, z):
+    radians = math.atan2(x, dist(y, z))
+    return -math.degrees(radians)
+
+def get_x_rotation(x, y, z):
+    radians = math.atan2(y, dist(x, z))
+    return math.degrees(radians)
+###################################################################
+###################################################################
+
+
+
+
 def main(): 
     t.start()
-
 
     #Wake up the mpu6050 (it starts in sleep mode)
     bus.write_byte_data(address, power_mgmt_1, 0)
@@ -340,20 +350,17 @@ def main():
     filtered_y_rotation = y_rotation
 
     # PID values
+    X_ROTATION_OFFSET = -3.1 #+/- 0.2 after letting it run on a flat surface for a while
+    Y_ROTATION_OFFSET = 0.15 #+/- 0.2 after letting it run on a flat surface for a while
     SET_POINT = 0.0 #leveled #using the same SP for both X and Y axises
     K_PROPORTIONAL = 1.0
-    K_INTEGRAL = 1.0
+    K_INTEGRAL = 0.0
     K_DERIVATIVE = 0.0
     error_X_axis = 0.0
     error_Y_axis = 0.0
     dt = 0.0
     integral_X_axis = 0.0
     integral_Y_axis = 0.0
-    process_variable_X_axis = (K_PROPORTIONAL*error_X_axis) + (K_INTEGRAL*(integral_X_axis+=(dt*error_X_axis))) #just PI in PID for now
-    process_variable_Y_axis = (K_PROPORTIONAL*error_Y_axis) + (K_INTEGRAL*(integral_Y_axis+=(dt*error_Y_axis))) #just PI in PID for now
-
-
-
 
 
     loopstart = time.time()
@@ -367,8 +374,8 @@ def main():
         accel_xout_scaled = read_word_2c(0x3b) / 16384.0
         accel_yout_scaled = read_word_2c(0x3d) / 16384.0
         accel_zout_scaled = read_word_2c(0x3f) / 16384.0
-        x_rotation = get_x_rotation(accel_xout_scaled, accel_yout_scaled, accel_zout_scaled)
-        y_rotation = get_y_rotation(accel_xout_scaled, accel_yout_scaled, accel_zout_scaled)
+        x_rotation = get_x_rotation(accel_xout_scaled, accel_yout_scaled, accel_zout_scaled) - X_ROTATION_OFFSET
+        y_rotation = get_y_rotation(accel_xout_scaled, accel_yout_scaled, accel_zout_scaled) - Y_ROTATION_OFFSET
 
         filtered_x_rotation = (alpha * gyro_x_rotation) + ((1-alpha) * (x_rotation))
         filtered_y_rotation = (alpha * gyro_y_rotation) + ((1-alpha) * (y_rotation))
@@ -378,14 +385,63 @@ def main():
 
         #PID
         dt = time.time() - loopstart
-        error_X_axis = SET_POINT - filtered_x_rotation
-        error_Y_axis = SET_POINT - filtered_y_rotation
-        process_variable_X_axis = (K_PROPORTIONAL*error_X_axis) + (K_INTEGRAL*(integral_X_axis+=(dt*error_X_axis))) #just PI in PID for now
-        process_variable_Y_axis = (K_PROPORTIONAL*error_Y_axis) + (K_INTEGRAL*(integral_Y_axis+=(dt*error_Y_axis))) #just PI in PID for now
+        error_X_axis = SET_POINT - (filtered_x_rotation)
+        error_Y_axis = SET_POINT - (filtered_y_rotation)
+        print "X_error " + str(error_X_axis)
+        print "Y_error " + str(error_Y_axis)
+        integral_X_axis+=(dt*error_X_axis)
+        integral_Y_axis+=(dt*error_Y_axis)
+        process_variable_X_axis = (K_PROPORTIONAL*error_X_axis) + (K_INTEGRAL*(integral_X_axis)) #just PI in PID for now
+        process_variable_Y_axis = (K_PROPORTIONAL*error_Y_axis) + (K_INTEGRAL*(integral_Y_axis)) #just PI in PID for now
 
-          
+        
+        motor1List[ADJUSTEDSPEED] = motor1List[SPEED]
+        motor2List[ADJUSTEDSPEED] = motor2List[SPEED]
+        motor3List[ADJUSTEDSPEED] = motor3List[SPEED]
+        motor4List[ADJUSTEDSPEED] = motor4List[SPEED]
+        #if(error_X_axis < 0): #positive x rotation past the set point
+        motor1List[ADJUSTEDSPEED] += (process_variable_X_axis*PWM_SCALE/2)
+        motor2List[ADJUSTEDSPEED] += (process_variable_X_axis*PWM_SCALE/2)
+        motor3List[ADJUSTEDSPEED] -= (process_variable_X_axis*PWM_SCALE/2)
+        motor4List[ADJUSTEDSPEED] -= (process_variable_X_axis*PWM_SCALE/2)
+        '''else:
+            print "negative X rotation"
+            motor1List[ADJUSTEDSPEED] += (process_variable_X_axis*PWM_SCALE/2)
+            motor2List[ADJUSTEDSPEED] += (process_variable_X_axis*PWM_SCALE/2)
+            motor3List[ADJUSTEDSPEED] -= (process_variable_X_axis*PWM_SCALE/2)
+            motor4List[ADJUSTEDSPEED] -= (process_variable_X_axis*PWM_SCALE/2)
+        '''
+
+        #if(error_Y_axis < 0): #positive y rotation past the set point
+        motor1List[ADJUSTEDSPEED] += (process_variable_Y_axis*PWM_SCALE/2)
+        motor2List[ADJUSTEDSPEED] -= (process_variable_Y_axis*PWM_SCALE/2)
+        motor3List[ADJUSTEDSPEED] -= (process_variable_Y_axis*PWM_SCALE/2)
+        motor4List[ADJUSTEDSPEED] += (process_variable_Y_axis*PWM_SCALE/2)
+        '''else:
+            print "negative Y rotation"
+            motor1List[ADJUSTEDSPEED] += (process_variable_Y_axis*PWM_SCALE/2)
+            motor2List[ADJUSTEDSPEED] -= (process_variable_Y_axis*PWM_SCALE/2)
+            motor3List[ADJUSTEDSPEED] -= (process_variable_Y_axis*PWM_SCALE/2)
+            motor4List[ADJUSTEDSPEED] += (process_variable_Y_axis*PWM_SCALE/2)
+        '''
 
 
+        for each in motors:
+            if(each[SPEED] == ZERO):
+                each[ADJUSTEDSPEED] = ZERO
+                each[MOTOR].ChangeDutyCycle(each[ADJUSTEDSPEED])
+            elif(each[ADJUSTEDSPEED] < PWM_MIN):
+                each[ADJUSTEDSPEED] = PWM_MIN
+                each[MOTOR].ChangeDutyCycle(each[ADJUSTEDSPEED])
+            elif(each[ADJUSTEDSPEED] > PWM_MAX):
+                each[ADJUSTEDSPEED] = PWM_MAX
+                each[MOTOR].ChangeDutyCycle(each[ADJUSTEDSPEED])
+            else:
+                each[MOTOR].ChangeDutyCycle(each[ADJUSTEDSPEED])
+
+
+        print "M1: %f | M2: %f | M3: %f | M4: %f" % (motor1List[SPEED], motor2List[SPEED], motor3List[SPEED], motor4List[SPEED])
+        print "M1: %f | M2: %f | M3: %f | M4: %f" % (motor1List[ADJUSTEDSPEED], motor2List[ADJUSTEDSPEED], motor3List[ADJUSTEDSPEED], motor4List[ADJUSTEDSPEED])
 
 
 
