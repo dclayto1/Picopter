@@ -400,15 +400,15 @@ def main():
         motor3List[ADJUSTEDSPEED] = motor3List[SPEED]
         motor4List[ADJUSTEDSPEED] = motor4List[SPEED]
         
-        motor1List[ADJUSTEDSPEED] += (process_variable_X_axis*PWM_SCALE/2)
-        motor2List[ADJUSTEDSPEED] += (process_variable_X_axis*PWM_SCALE/2)
-        motor3List[ADJUSTEDSPEED] -= (process_variable_X_axis*PWM_SCALE/2)
-        motor4List[ADJUSTEDSPEED] -= (process_variable_X_axis*PWM_SCALE/2)
+        motor1List[ADJUSTEDSPEED] += (process_variable_X_axis*(PWM_SCALE*PWM_SCALE))
+        motor2List[ADJUSTEDSPEED] += (process_variable_X_axis*(PWM_SCALE*PWM_SCALE))
+        motor3List[ADJUSTEDSPEED] -= (process_variable_X_axis*(PWM_SCALE*PWM_SCALE))
+        motor4List[ADJUSTEDSPEED] -= (process_variable_X_axis*(PWM_SCALE*PWM_SCALE))
 
-        motor1List[ADJUSTEDSPEED] += (process_variable_Y_axis*PWM_SCALE/2)
-        motor2List[ADJUSTEDSPEED] -= (process_variable_Y_axis*PWM_SCALE/2)
-        motor3List[ADJUSTEDSPEED] -= (process_variable_Y_axis*PWM_SCALE/2)
-        motor4List[ADJUSTEDSPEED] += (process_variable_Y_axis*PWM_SCALE/2)
+        motor1List[ADJUSTEDSPEED] += (process_variable_Y_axis*(PWM_SCALE*PWM_SCALE))
+        motor2List[ADJUSTEDSPEED] -= (process_variable_Y_axis*(PWM_SCALE*PWM_SCALE))
+        motor3List[ADJUSTEDSPEED] -= (process_variable_Y_axis*(PWM_SCALE*PWM_SCALE))
+        motor4List[ADJUSTEDSPEED] += (process_variable_Y_axis*(PWM_SCALE*PWM_SCALE))
 
 
         for each in motors:
